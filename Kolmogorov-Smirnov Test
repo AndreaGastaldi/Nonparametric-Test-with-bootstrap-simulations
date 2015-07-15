@@ -1,0 +1,31 @@
+#database Lanza from link <https://vincentarelbundock.github.io/Rdatasets/datasets.html>
+
+data<-read.csv("Lanza.csv",header=TRUE,sep=",")
+data1<-read.csv("Lanza.csv",header=TRUE,sep=",",nrows=35) 
+data2<-read.csv("Lanza.csv",header=TRUE,sep=",",skip=44) 
+
+colnames(data) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data1) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data2) <- c("mil","coop","target","import","export","cost",num,"ncost")
+
+training<-as.numeric(as.character(data1$coop))
+test<-as.numeric(as.character(data2$coop))
+
+result<-ks_boot(training,test,b,alternative)
+
+ks_boot<-function (training,test,b,alternative) 
+{ 
+
+  #Indicizzo variabile di conteggio
+  bbcount <- 0
+  
+      #Controllo che le variabili di input non siano valori mancanti(NA)
+      training <- training[!is.na(training)]
+      test<- test[!is.na(test)]
+      
+      #test
+      pval_ks<-list(ks.boot(training,test,nboots = b,
+                             alternative = alternative, print.level = 0))
+  
+  return(pval_ks)
+}
