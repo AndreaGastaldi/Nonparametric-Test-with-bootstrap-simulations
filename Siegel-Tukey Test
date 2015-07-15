@@ -1,0 +1,108 @@
+#database Lanza from link <https://vincentarelbundock.github.io/Rdatasets/datasets.html>
+
+data<-read.csv("Lanza.csv",header=TRUE,sep=",")
+data1<-read.csv("Lanza.csv",header=TRUE,sep=",",nrows=35) 
+data2<-read.csv("Lanza.csv",header=TRUE,sep=",",skip=44) 
+
+colnames(data) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data1) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data2) <- c("mil","coop","target","import","export","cost",num,"ncost")
+
+training<-as.numeric(as.character(data1$coop))
+test<-as.numeric(as.character(data2$coop))
+result<-siegel_boot(training,test,b,alternative)
+
+siegel_boot<-function(training,test,b,alternative)
+{ 
+  #Indicizzo ariabile di conteggio
+  bbcount <- 0
+  
+      #Ordino i  le variabili
+      training<-training[order(training)]
+      test<-test[order(test)]
+      
+      #Calcolo mediane
+      
+     #mediana data training
+     m_tr<-median(training)
+  
+     #mediana data test
+     m_te<-median(test)
+  
+     #Differenza tra le due mediane
+     m_tot<-m_tr-m_te
+      
+  #Bootstrapping
+  
+  #Calcolo il valore piu piccolo su R
+  tol <- sqrt(.Machine$double.eps)
+  
+  #Carico i due dataset in un unica variabile
+  union<- c(training, test)
+  
+  #valuto la lunghezza della variabile union
+  obs <- length(union)
+  
+  #lunghezza della singola colonna la quale mi servirà successimente nel ricampionamento
+  
+  cutp<- length(training)
+      
+      #Test non riampionato
+      siegel<-SiegelTukeyTest(training,test,alternative=alternative,
+                              exact=TRUE,adjust.median=TRUE,m_tot)$p.value
+      
+      #Ciclo for per simulare b cambioni bootstrap
+      for (bb in 1:b) 
+      {
+        sindx <- sample(1:obs, obs, replace = TRUE)
+        training_b<- union[sindx[1:cutp]]
+        test_b<- union[sindx[(cutp + 1):obs]]
+        
+        #mediana data training
+        m_tr_b<-median(training)
+        
+        #mediana data test
+        m_te_b<-median(test)
+        
+        #Differenza tra le due mediane
+        m_tot_b<-m_tr_b-m_te_b
+        
+        
+        siegel_sample<-SiegelTukeyTest(training_b,test_b,alternative=alternative,
+                                     exact=TRUE,m_tot_b,adjust.median=TRUE)
+        
+        if(is.na(siegel_sample$p.value))
+        {
+          warning("Too many missing values in the selected column")
+          
+          output<-list("Impossible to calculate p-value.You can not use the test for this variable
+                       Too many missing values"=siegel_sample)
+          
+          return(output)
+        }
+        
+        if (siegel_sample$p.value >= (siegel-tol))
+        {
+          #incremento bbcount ogni volta che viene soddifatta la condzione
+          bbcount<- bbcount + 1
+          
+          #P-value test
+          siegel.boot.pval <- bbcount/b
+          
+          output<-list(siegel_sample,"p-value boot"=siegel.boot.pval)
+          
+        } 
+
+        else
+            {
+              #P-value test
+              siegel.boot.pval <- bbcount/b
+              
+              output<-list(siegel_sample,"p-value boot"=siegel.boot.pval)
+  
+             }
+    
+      }
+     
+  return(output)
+}
