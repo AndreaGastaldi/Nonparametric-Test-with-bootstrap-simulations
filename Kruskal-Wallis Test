@@ -1,0 +1,106 @@
+#database Lanza from \link <https://vincentarelbundock.github.io/Rdatasets/datasets.html>
+
+data<-read.csv("Lanza.csv",header=TRUE,sep=",")
+data1<-read.csv("Lanza.csv",header=TRUE,sep=",",nrows=35) 
+data2<-read.csv("Lanza.csv",header=TRUE,sep=",",skip=44) 
+
+colnames(data) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data1) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data2) <- c("mil","coop","target","import","export","cost",num,"ncost")
+
+training<-as.factor(as.character(data1$ncost))
+test<-as.factor(as.character(data2$ncost))
+
+result<-kruskal_wallis_boot(training,test,b,alternative)
+
+kruskal_wallis_boot<-function(training,test,b,alternative)
+{
+
+      bbcount <- 0
+      Kruskal_wallis_sample<-0
+      
+      training<-as.factor(as.character(training))
+      test<-as.factor(as.character(training))
+      
+      #Bootstrapping
+   
+      tol <- sqrt(.Machine$double.eps)
+      
+      union<-c(training, test)
+      
+      obs <- length(union)
+      
+      cutp<-length(training)
+      
+      l<- c(rep(1,length(training)),rep(2,length(test)))
+
+    if( length(training)==length(test))
+    {
+      Kruskal_wallis<-kruskal.test(union,l)$p.value
+    }
+      
+    else
+    {
+      length_tr<-length(training)
+      length_te<-length(test)
+      w<-("Error in kruskal.test'training' and 'test' must have the same length")
+      
+      output<-list(w,"Length of Training"=length_tr,
+                   "Length of Test"=length_te)
+      return(output)
+   }
+   
+  for (bb in 1:b) 
+      {
+    
+        sindx <- sample(1:obs, obs, replace = TRUE)
+        training_b<- union[sindx[1:cutp]]
+        test_b<- union[sindx[(cutp + 1):obs]]
+
+        union_b<-c(training_b,test_b)
+        l_sample<- c(rep(1,length(training_b)),rep(2,length(test_b)))
+        
+       if( length(training==length(test)))
+      
+         Kruskal_wallis_sample<-kruskal.test(union_b,l_sample)
+       else
+          {
+             warning(" Training and Test must have the same length")
+           }
+       
+       if(is.na(Kruskal_wallis_sample$p.value))
+       {
+         warning("Too many missing values in the selected column")
+         
+         output<-list("Impossible to calculate p-value.You can not use the test for this variable
+                       Too many missing values"=Kruskal_wallis_sample)
+         
+         return(output)
+       }
+       
+        if (Kruskal_wallis_sample$p.value>= (Kruskal_wallis-tol) )
+        {   
+          bbcount<- bbcount + 1
+          
+          #P-value test
+          kruskal.boot.pval <- bbcount/b
+          
+          #Statistica del test
+          s<-Kruskal_wallis_sample[1]
+          #p-vale
+          p<-Kruskal_wallis_sample[3]
+          #method
+          m<-Kruskal_wallis_sample[4]
+          
+          output<-list(s,p,m,"p-value boot"=kruskal.boot.pval)
+        } 
+        
+       else
+          {
+            #P-value test
+            kruskal.boot.pval <- bbcount/b
+          }
+      } 
+
+    return(output)
+}
