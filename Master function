@@ -1,0 +1,256 @@
+library(Matching)
+library(RVAideMemoire)
+library(DescTools)
+library(MASS)
+library(boot)
+
+database car90 from link <https://vincentarelbundock.github.io/Rdatasets/datasets .html>
+
+data<-read.csv("car90.csv",header=TRUE,sep=",")
+training<-read.csv("car90.csv",header=TRUE,sep=",",nrows=55) 
+test<-read.csv("car90.csv",header=TRUE,sep=",",skip=57) 
+
+colnames(data) <- c("Country","Disp","Disp2","Eng.Rev",Front.Hd","Frt.Leg.Room","Frt.Shld","Gear.Ratio","Gear2","HP","HP.revs","Height","Length","Luggage","Mileage",    "Model2","Price","Rear.Hd","Rear.Seating","RearShld","Reliability",Rim","Sratio.m",
+"	Sratio.p", "Steering","Tank","Tires","Trans1","Trans2","Turning","Type","Weight",
+"	Wheel.base","Width")
+
+colnames(training) <- c("Country","Disp","Disp2","Eng.Rev",Front.Hd","Frt.Leg.Room","Frt.Shld","Gear.Ratio","Gear2","HP","HP.revs","Height","Length","Luggage","Mileage",    "Model2","Price","Rear.Hd","Rear.Seating","RearShld","Reliability",Rim","Sratio.m",
+"  Sratio.p", "Steering","Tank","Tires","Trans1","Trans2","Turning","Type","Weight",
+"	Wheel.base","Width")
+
+colnames(test) <- c("Country","Disp","Disp2","Eng.Rev",Front.Hd","Frt.Leg.Room","Frt.Shld","Gear.Ratio","Gear2","HP","HP.revs","Height","Length","Luggage","Mileage",    "Model2","Price","Rear.Hd","Rear.Seating","RearShld","Reliability",Rim","Sratio.m",
+"  Sratio.p", "Steering","Tank","Tires","Trans1","Trans2","Turning","Type","Weight",
+"	Wheel.base","Width")
+b<-1000
+alternative<-c("two.sided")
+
+
+function_test<-master(training,test,b,alternative,vectors="delete",vars="ts")
+
+
+master<-function(training,test,b,alternaive=c("two.sided", 
+                                              "less", "greater"),vectors=NULL,vars=NULL)
+{
+  
+  #Controllo che il training e il test siano effettivamente dei dataset
+  if(is.data.frame(training))
+  {
+    if(is.data.frame(test))
+    {
+      #cancello colonne selezionate
+        if(vectors=="delete")
+       {
+          #Verifico che la colonna esista
+          if(c(vars) %in% names(training))
+            {
+            
+              training<-subset(training, select = -eval(parse(text=vars)))
+              
+              test<-subset(test, select = -eval(parse(text=vars)))
+              
+            }
+            
+          else
+          {
+            warning("The selected column is not in the data frames")
+          }
+        }
+      
+      #Controllo il numero di simulazioni
+      if (b < 10) 
+      {
+        warning("At least 10 'b' must be run")
+      }
+      if (b < 500) 
+      {
+        warning("For publication quality p-values it is recommended that 'b'\n be set equal to at least 500 (preferably 1000)")
+      }
+      
+      #numero di colonne del training
+      n<-ncol(training)
+      
+      level_training<-0
+      level_test<-0
+      
+      for(k in 1:n)
+      {
+        if ((nlevels(training[,k]) < 2L) || (nlevels(test[,k]) < 2L)) 
+          
+          warning("'training' and 'test' must have at least 2 levels")
+        
+        level_training[k]<-colnames(training[k])
+        level_test[k]<-colnames(test[k])
+      }
+      
+      #modifico la variabile in factor
+      if(vectors=="factor")
+      {
+        if(is.factor(vars))
+          
+          warning("The variable is already a factor!")
+        
+        else
+        {
+          
+          training[,vars] <- as.factor(as.character(training[,vars]))
+          test[,vars] <- as.factor(as.character(test[,vars]))
+        }
+      } 
+      
+      if(vectors=="numeric")
+      {
+        if(is.numeric(vars))
+          
+          warning("The variable is already a numeric!")
+        
+        else
+        {
+          
+          training[,vars] <- as.numeric(as.character(training[,vars]))
+          test[,vars] <- as.numeric(as.character(test[,vars]))
+        }
+      } 
+      
+      #seperate numerical and categorical data
+      num_training=NULL
+      cat_training=NULL   
+      
+      for(j in 1:dim(training)[2])
+      {
+        if (is.numeric(training[,j])|is.integer(training[,j]))
+        {
+          num_training<-cbind(num_training,j)
+        }
+        if(is.factor(training[,j])| is.logical(training[,j]))
+        {
+          if (nlevels(training[,j])>=2)
+          {
+            cat_training<-cbind(cat_training,j)
+          }
+        }
+      }
+      
+      #numerical data
+      training_num<-training[,num_training] 
+      test_num<-test[,num_training] 
+      
+      #categorical data
+      training_cat<-training[,cat_training] 
+      test_cat<-test[,cat_training]
+      
+      #Controllo che le variabili di input non siano valori mancanti(NA)
+      
+      na_value_tr<-0
+      na_value_te<-0  
+      lista_cat<-list()
+      list_cat<-list()
+      n_tr<-ncol(training_cat)
+      n_te<-ncol(test_cat)
+      
+      
+      for(ii in 1:n_tr)
+      {
+       if(sum(is.na(test_cat[,ii]))>0)
+      {
+        lista_cat[ii]<-list(training_cat[!is.na(training_cat[ii]),ii])
+        
+        na_value_tr<-rownames(training_cat[ii])
+        warning("There is NA value in some variable.")
+       }
+      else
+        {
+         lista_cat[ii]<-list(training_cat[,ii])
+        }
+      }
+
+for(jj in 1:n_te)
+{
+  if(sum(is.na(test_cat[,jj]))>0)
+  {
+          
+         list_cat[jj]<- list(test_cat[!is.na(test_cat[,jj]),jj])
+            
+           
+            na_value_te<-rownames(test_cat[jj])
+            
+            warning("There is NA value in some variable.") 
+  }
+  else
+    {
+    list_cat[jj]<-list(test_cat[,jj])
+     }
+}  
+      #inizilizzo output test
+      kolmogorov<-list()
+      wilcox<-list()
+      siegel<-list()
+      chi<-list()
+      kruskal<-list()
+    
+      #Determino il numero di colonne per il dataset numerico e categorico
+      col_n_tr<-ncol(training_num)
+      col_n_te<-ncol(training_cat)      
+
+      for(i in 1:col_n_tr)
+      {
+        
+        #NUMERICAL TEST
+        
+        #Kolmogorov-smirnov
+        kolmogorov[[i]]<-ks_boot(training_num[,i],test_num[,i],b,alternative)
+        
+        #Wilcoxon 
+        wilcox[[i]]<-wilcox_boot(training_num[,i],test_num[,i],b,alternative)
+        
+        #Siegel-Turkey
+        siegel[[i]]<-siegel_boot(training_num[,i],test_num[,i],b,alternative)
+        
+        
+      } 
+
+for(k in 1:col_n_te)
+{
+  
+      #Chi-Squared
+      chi[[k]]<-chi_squared_boot(lista_cat[[k]],list_cat[[k]],b,alternative)
+    
+        #Kruskal-Wallis
+        kruskal[[k]]<-list(kruskal_wallis_boot(lista_cat[[k]],list_cat[[k]],b,
+                                             alternative))
+  
+}       
+      }
+      
+    
+    else
+    {
+      warning("Error! The inserted object is not a data frame!!")
+    }
+  
+  }
+  else
+  {
+    warning("Error! The inserted object is not a data frame!!")
+  }
+
+names(kolmogorov)<-colnames(training_num)
+names(wilcox)<-colnames(training_num)
+names(siegel)<-colnames(training_num)
+names(chi)<-colnames(training_cat)
+names(kruskal)<-colnames(training_cat)
+
+
+output<-list(kolmogorov,wilcox,siegel,chi,kruskal)
+
+#Per ogni output rilascio il nome del test
+
+names(output)[[1]]<-"kolmogorov"
+names(output)[[2]]<-"wilcox"
+names(output)[[3]]<-"siegel"
+names(output)[[4]]<-"chi-squared"
+names(output)[[5]]<-"kruskal"
+
+  return(output)
+
+}
+
