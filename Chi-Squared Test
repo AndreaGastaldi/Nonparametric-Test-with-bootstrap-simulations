@@ -1,0 +1,124 @@
+#database Lanza from link <https://vincentarelbundock.github.io/Rdatasets/datasets.html>
+
+data<-read.csv("Lanza.csv",header=TRUE,sep=",")
+data1<-read.csv("Lanza.csv",header=TRUE,sep=",",nrows=35) 
+data2<-read.csv("Lanza.csv",header=TRUE,sep=",",skip=44) 
+
+colnames(data) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data1) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data2) <- c("mil","coop","target","import","export","cost",num,"ncost")
+
+training<-as.factor(as.character(data1$ncost))
+test<-as.factor(as.character(data2$ncost))
+
+result<-chi_squared_boot(training,test,b,alternative)
+
+chi_squared_boot<-function(training,test,b,alternative)
+{
+      #Resetto bbcount per ogni colonna del dataset
+      bbcount <- 0
+      chi_squared_sample<-0
+      chi_squared<-0
+      
+      training<-as.factor(as.character(training))
+      test<-as.factor(as.character(training))
+      
+     #Bootstrapping
+
+     #Calcolo il valore piu piccolo su R
+     tol <- sqrt(.Machine$double.eps)
+     
+    l1<-length(training)
+    l2<-length(test)
+    
+    #verifico la lunghezza dei due data set
+    if(length(training) != length(test))
+    {
+      length_tr<-length(training)
+      length_te<-length(test)
+      w<-("Error in chisq.test'training' and 'test' must have the same length")
+      
+      output<-list(w,"Length of Training"=length_tr,
+                   "Length of Test"=length_te)
+      return(output) 
+    }
+    
+    #Controllo numero di livelli nei data set
+    
+    if(nlevels(training)>=2 & nlevels(test)>=2)
+  { 
+      #Test senza ricampionamento
+      chi_squared<-chisq.test(training, test)$p.value
+ }
+  else
+  {
+    
+    w<-"training boot e test boot don't have already 2 levels!"
+    
+    l_tr<-nlevels(training)
+    l_te<-nlevels(test)
+    
+    output<-list(w,"Numero livelli training"=l_tr,
+                "Numero livelli test"=l_te)
+    return(output)
+    
+  }
+ 
+      #Ciclo for per simulare b cambioni bootstrap
+      for (bb in 1:b) 
+      {
+        s1<-sample(1:l1, l1, replace = TRUE)
+        s2<-sample(1:l2, l2, replace = TRUE)
+        
+        training_b<-factor(training,labels=c(levels(training)))
+        test_b<-factor(test,labels=c(levels(test)))
+        
+        if(length(training_b) != length(test_b))
+        {
+          length_tr<-length(training_b)
+          length_te<-length(test_b)
+          w<-("Error in chisq.test'training' and 'test' must have the same length")
+          
+          output<-list(w,"Length of Training"=length_tr,
+                       "Length of Test"=length_te)
+          return(output)
+        }
+        
+        #Controllo che dopo il ricampionamento le variabili abbiano ancora piu di due levels
+        if(nlevels(training_b)>=2 & nlevels(test_b)>=2)
+        {
+          #test con valori ricampionati
+          chi_squared_sample<-chisq.test(training_b,test_b)
+        }
+        else
+        {
+          warning("training boot e test boot don't have already 2 levels!")
+          lev_tr<-nlevels(training)
+          lev_te<-nlevels(test)
+          
+          output<-list("Numero livelli training boot"=lev_tr,
+                       "Numero livelli test boot"=lev_te)
+        }
+        
+        #Controllo che la statistica del test ricampionato sia maggiore 
+        #di quello non ricampionato
+        if (chi_squared_sample[3] >= (chi_squared-tol) )
+        {   
+          #incremento bbcount ogni volta che viene soddifatta la condzione precedente
+          bbcount <- bbcount + 1
+          
+          #P-value test
+          chisq.boot.pval <- bbcount/b
+          
+          output<-list(chi_squared_sample,"p-value boot"=chisq.boot.pval)
+        } 
+        else
+        {
+          chisq.boot.pval <- bbcount/b
+        }
+        
+      }
+
+
+     return(output)
+}
