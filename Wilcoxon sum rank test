@@ -1,0 +1,123 @@
+#database Lanza from link <https://vincentarelbundock.github.io/Rdatasets/datasets.html>
+
+data<-read.csv("Lanza.csv",header=TRUE,sep=",")
+data1<-read.csv("Lanza.csv",header=TRUE,sep=",",nrows=35) 
+data2<-read.csv("Lanza.csv",header=TRUE,sep=",",skip=44) 
+
+colnames(data) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data1) <- c("mil","coop","target","import","export","cost",num,"ncost")
+colnames(data2) <- c("mil","coop","target","import","export","cost",num,"ncost")
+
+training<-as.numeric(as.character(data1$coop))
+test<-as.numeric(as.character(data2$coop))
+
+result<-wilcox_boot(training,test,b,alternative)
+
+wilcox_boot<-function(training,test,b,alternative)
+{
+  bbcount<-0
+  
+  #Controllo che le variabili di input non siano valori mancanti(NA)
+  training <- training[!is.na(training)]
+  test<- test[!is.na(test)]
+      
+  training<-training[order(training)]
+  test<-test[order(test)]
+  
+    #mediana data training
+    m_tr<-median(training)
+    #mediana data test
+    m_te<-median(test)
+    
+    #Differenza tra le due mediane
+    m_tot<-m_tr-m_te
+      
+    #Bootstrapping
+      
+    #Calcolo il valore piu piccolo su R
+    tol <- sqrt(.Machine$double.eps)
+        
+      #Carico i due dataset in un unica variabile
+      union<- c(training, test)
+      
+      #valuto la lunghezza della variabile union
+      obs <- length(union)
+      
+      #lunghezza della singola colonna la quale mi servirà successimente nel ricampionamento
+      
+      cutp<- length(training)
+      
+      #Eseguo il test non ricampionato
+      wilcox<-wilcox.test(training,test,alternative=alternative,m_tot=m_tot)
+      
+  
+  if(is.na(wilcox$p.value))
+  {
+    warning("Too many missing values in the selected column")
+    
+    output<-list("Impossible to calculate p-value.You can not use the test for this variable \n
+                       Too many missing values"=wilcox)
+    
+    return(output)
+  }
+  
+      #Ciclo for per simulare b cambioni bootstrap
+      for (bb in 1:b) 
+      {
+      
+        sindx <- sample(1:obs, obs, replace = TRUE)
+        training_b<- union[sindx[1:cutp]]
+        test_b<- union[sindx[(cutp + 1):obs]]
+        
+        training_b<-order(training_b)
+        test_b<-order(test_b)
+        
+        #mediana data training boot
+        m_tr_b<-median(training_b)
+        #mediana data test boot
+        m_te_b<-median(test_b)
+        
+        #Differenza tra le due mediane boot
+        m_tot_b<-m_tr_b-m_te_b
+        
+        #test
+        wilcox_sample<-wilcox.test(training_b,test_b,alternative = alternative,
+                                   mu=m_tot_b)
+       
+        if(is.na(wilcox_sample$p.value))
+        {
+          warning("Too many missing values in the selected column")
+          
+          output<-list("Impossible to calculate p-value.You can not use the test for this variable \n
+                       Too many missing values"=wilcox_sample)
+          
+          return(output)
+        }
+        
+        #Controllo che il test ricampionato sia maggiore di quello non ricampionato
+        if (wilcox_sample$p.value >= (wilcox$p.value-tol)) 
+        { 
+          #incremento bbcount ogni volta che viene soddifatta la condzione
+          bbcount <- bbcount + 1
+          
+        
+          #P-value test
+          wilcox.boot.pval <- bbcount/b
+          
+          output<-list("test di wilcoxon"=wilcox_sample,
+                       "p-value boot"= wilcox.boot.pval)
+        } 
+        
+        else
+        {
+          #P-value test
+          wilcox.boot.pval <- bbcount/b
+          output<-list("test di wilcoxon"=wilcox_sample,
+                       "p-value boot"= wilcox.boot.pval)
+        }
+
+        
+      }
+   
+  return(output)
+}
